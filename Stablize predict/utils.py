@@ -1,18 +1,18 @@
+import codecs
+import concurrent.futures
 import os
 
-import torch
-import concurrent.futures
-from pymatgen.io.cif import CifParser
-from pymatgen.util.coord import get_angle
-from torch_geometric.data import Data, Dataset, DataLoader, InMemoryDataset
-from pymatgen.analysis.local_env import CrystalNN
-from monty.serialization import dumpfn, loadfn
 import numpy
-import pandas
-import codecs
-from pymatgen.analysis.diffusion.aimd import rdf
+import torch
+from monty.serialization import loadfn
+from pymatgen.analysis.local_env import CrystalNN
+from pymatgen.io.cif import CifParser
+from torch_geometric.data import Data, InMemoryDataset
+import warnings
 
+warnings.filterwarnings('ignore')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+band_structure_order = ['1s', '2s', '2p', '3s', '3p', '4s', '3d', '4p', '5s', '4d', '5p', '6s', '4f', '5d', '6p', '7s']
 
 
 class CustomDataset(InMemoryDataset):
@@ -68,6 +68,10 @@ def build_dict():
         whole_json = loadfn("D:\\桌面\\materials code\\cif2graph_data\\json\\" + filename)
 
         for json in whole_json:
+            # print(json)
+            # for item in json:
+            #     print(item + ":" + str(json[item]))
+            # print("----------------------------------------------------------------------")
             # is_stable_dic[json["material_id"]] = json["is_stable"]
             write_file.write(json["material_id"] + ":" + str(int(json["is_stable"])) + "\n")
 
@@ -85,7 +89,7 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
     a = structure.lattice.a
     b = structure.lattice.b
     c = structure.lattice.c
-    abc_max = max(a, max(b, c))
+    # abc_max = max(a, max(b, c))
 
     whole_information = [a, b, c,
                          structure.lattice.alpha, structure.lattice.beta,
@@ -99,7 +103,28 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
 
     for site in structure.sites:
 
-        x.append([site.specie.atomic_mass, site.x / a, site.y / b, site.z / c])
+        nano_x = [site.specie.number, site.specie.atomic_mass, site.x / a, site.y / b, site.z / c,
+                  site.specie.atomic_radius,
+                  site.specie.average_anionic_radius,
+                  site.specie.average_cationic_radius,
+                  site.specie.electron_affinity,
+                  site.specie.group,
+                  site.specie.row]
+
+        for band in band_structure_order:
+            try:
+                if band in site.specie.atomic_orbitals_eV:
+                    nano_x.append(site.specie.atomic_orbitals_eV[band])
+                else:
+                    nano_x.append(0.0)
+            except Exception as e:
+                # print(e)
+                # print(site.specie.number)
+                nano_x.append(0.0)
+        # print(nano_x)
+        x.append(nano_x)
+        # print(x)
+
     # x = [int(site.specie.atomic_mass) for site in structure.sites]
 
     # 初始化一个空列表来存储新的张量
@@ -154,10 +179,10 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
             # 计算键价
             edge_attr.append([distance, -edge_vector_x, -edge_vector_y, -edge_vector_z])
             edge_attr.append([distance, edge_vector_x, edge_vector_y, edge_vector_z])
-    # gauss = GaussianDistance(dmin=0, dmax=abc_max, step=abc_max / 19)
+    gauss = GaussianDistance(dmin=0, dmax=8, step=0.2)
 
-    # for i in range(len(distances)):
-    #     edge_attr[i].extend(gauss.expand(distances[i]))
+    for i in range(len(distances)):
+        edge_attr[i].extend(gauss.expand(distances[i]))
 
         # print(edge_attr[i])
     # edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
@@ -171,11 +196,11 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
 
     data = Data(x=x,
                 edge_index=torch.tensor(edge_index, dtype=torch.long).t().contiguous(),
-                edge_attr=torch.tensor(edge_attr, dtype=torch.float), y=torch.tensor(y, dtype=torch.long))
+                edge_attr=torch.tensor(edge_attr, dtype=torch.float), y=torch.tensor(y, dtype=torch.long), cif=filename)
 
     # 打印 PyG 数据集
     # print("\nPyG Data:")
-    # print(data)
+
     # # print(data.x)
     # print(data.edge_index)
     # print(data.edge_attr)
@@ -199,13 +224,14 @@ def build_dataset():
     dataset = []
     file_names = []
     num = 0
-    with concurrent.futures.ProcessPoolExecutor(max_workers=12) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=16) as executor:
         # 使用线程池执行任务
         futures = {executor.submit(muti_process, listdir_cif, cnn, filename, lable_dic) for filename in
                    listdir_cif}
         for future in concurrent.futures.as_completed(futures):
             try:
                 data = future.result()
+
                 if data is not None:
 
                     dataset.append(data)
@@ -217,7 +243,7 @@ def build_dataset():
                     #     exit(0)
                     # print(num)
             except Exception as e:
-                print(f"Error processing {e}")
+                print(f"Error processing123 {e}")
 
     # muti_process(listdir_cif, num, cnn, lable_dic)
 

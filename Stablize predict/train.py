@@ -1,4 +1,4 @@
-import codecs
+
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import model
@@ -6,7 +6,8 @@ from utils import CustomDataset
 from torch import optim, nn
 import torch
 from torch_geometric.loader import DataLoader
-from torch.utils.data import WeightedRandomSampler
+
+from torch_geometric.nn import VGAE
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -15,9 +16,20 @@ dataset = torch.load("D:\\桌面\\materials code\\cif2graph_data\\dataset\\train
 # sampled_dataset = [dataset[i] for i in range(len(dataset)) if i % 15 == 0]
 train_dataset = CustomDataset(dataset)
 
-print("train_dataset.len():       ", train_dataset.__len__())
+# 获取节点的隐层表示
+# nodes_out_channels = 8
+# num_features = train_dataset.num_features
+# nodes_encoder = model.VGAE_Encoder(num_features, 16, nodes_out_channels)
+# nodes_encode_model = VGAE(encoder=nodes_encoder)
+# nodes_encode_model.load_state_dict(torch.load("D:\\桌面\\materials code\\cif2graph_data\\model\\VGAE_Is_Stable_GNN.pt"))
 
-model = model.Is_Stable_GNN(train_dataset.num_features, 2)
+# 获取边的隐层表示
+
+
+
+# model = model.Is_Stable_GNN(nodes_out_channels, train_dataset.num_edge_features, 2)
+model = model.Is_Stable_GNN(train_dataset.num_node_features, train_dataset.num_edge_features, 2)
+
 
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
@@ -26,20 +38,19 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 # print(train_loader.__dict__)
 # test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
-class_weights = torch.tensor([33730, 119488])  # 初始权重
+# class_weights = torch.tensor([33730, 119488])  # 初始权重
+#
+# # 归一化权重
+# normalized_weights = class_weights / class_weights.sum()
+#
+# # 将权重转换为所需的设备（例如CPU或GPU）
+# weights_tensor = normalized_weights.to(device)
+# print(weights_tensor)
+criterion = nn.CrossEntropyLoss()
 
-# 归一化权重
-normalized_weights = class_weights / class_weights.sum()
 
-# 将权重转换为所需的设备（例如CPU或GPU）
-weights_tensor = normalized_weights.to(device)
-print(weights_tensor)
-criterion = nn.CrossEntropyLoss(weights_tensor)
-
-# sampler = WeightedRandomSampler(weights=weights_tensor, num_samples=4000, replacement=True)
-# train_loader = DataLoader(dataset=train_dataset, batch_size=4000, sampler=sampler)
-train_loader = DataLoader(dataset=train_dataset, batch_size=3000, shuffle=True)
-
+train_loader = DataLoader(dataset=train_dataset, batch_size=2500, shuffle=True)
+print(train_dataset[5])
 num_epochs = 10000
 # 初始化一些用于绘图的变量
 
@@ -76,7 +87,7 @@ if __name__ == '__main__':
             optimizer.step()
 
         if epoch % 100 == 0 and epoch != 0:
-            losses_period.clear()
+
             torch.save(model.state_dict(), "D:\\桌面\\materials code\\cif2graph_data\\model\\Is_Stable_GNN.pt")
             # print("saved")
         average_loss = epoch_loss / len(train_loader)
@@ -89,7 +100,8 @@ if __name__ == '__main__':
             print("epoch_loss:    ", epoch_loss)
             print("epoch:     :", epoch)
             # plt.draw()
-
+            if epoch == 20:
+                losses_whole.clear()
             ax.clear()  # 清除之前的图形
             ax.plot(losses_whole)  # 绘制损失曲线
             ax.set_xlabel('Epoch')  # 设置x轴标签
@@ -103,3 +115,4 @@ if __name__ == '__main__':
             ax.set_ylabel('Loss')  # 设置y轴标签
             ax.set_title('Loss with Epoch (period)')  # 设置图表标题
             plt.savefig("D:\\桌面\\materials code\\cif2graph_data\\result\\Is_Stable_GNN_period.png")
+            losses_period.clear()

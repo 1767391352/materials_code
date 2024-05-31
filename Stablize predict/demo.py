@@ -7,6 +7,7 @@ from utils import CustomDataset
 from torch import optim, nn
 import torch
 from torch_geometric.loader import DataLoader
+import random
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -31,10 +32,41 @@ fig, ax = plt.subplots()  # 创建一个图形和一个坐标轴
 losses_whole = []  # 用于存储每个epoch的损失
 losses_period = []
 if __name__ == '__main__':
+    select_data = {0: 0, 1: 0}
+    train_dataset = []
+    test_dataset = []
     # for data in train_loader:
     #     print(data)
-    train_dataset = [dataset[i] for i in range(len(dataset)) if i % 20 == 6 or i % 20 == 14]
+    num = 0
+    for data in dataset:
+
+        if 40000 > select_data[0] + select_data[1]:
+
+            if select_data[0] == select_data[1]:
+                train_dataset.append(data)
+                select_data[data.y.item()] += 1
+            elif select_data[0] > select_data[1] and data.y == 1:
+                train_dataset.append(data)
+                select_data[data.y.item()] += 1
+            elif select_data[0] < select_data[1] and data.y == 0:
+                train_dataset.append(data)
+                select_data[data.y.item()] += 1
+
+        elif 60000 > select_data[0] + select_data[1]:
+
+            if select_data[0] == select_data[1]:
+                test_dataset.append(data)
+                select_data[data.y.item()] += 1
+            elif select_data[0] > select_data[1] and data.y == 1:
+                test_dataset.append(data)
+                select_data[data.y.item()] += 1
+            elif select_data[0] < select_data[1] and data.y == 0:
+                test_dataset.append(data)
+                select_data[data.y.item()] += 1
+
+    print(select_data)
+
     torch.save(train_dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\train_dataset_whole.pth")
-    test_dataset = [dataset[i] for i in range(len(dataset)) if i % 20 != 6 and i % 20 != 14]
+
     torch.save(test_dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\test_dataset_whole.pth")
-        # print(numpy.array(data.y)[0])
+    # print(numpy.array(data.y)[0])

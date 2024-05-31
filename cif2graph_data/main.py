@@ -43,7 +43,7 @@ if __name__ == '__main__':
     API_KEY = "123456"
     with MPRester(API_KEY) as mpr:
         # 使用 summary.search 方法搜索所有材料ID
-        # 通过指定 fields 参数为 ["material_id"] 来只获取材料ID
+
         docs = mpr.materials.summary.search()
 
         print("getting docs done.")
@@ -52,4 +52,4 @@ if __name__ == '__main__':
     get_json(docs)
     # materials_summary = loadfn("materials_summary.json")
 
-    # get_cif(docs)
+    get_cif(docs)
