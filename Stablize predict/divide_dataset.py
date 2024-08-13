@@ -1,9 +1,12 @@
+import random
+
 import matplotlib.pyplot as plt
 import torch
+from torch_geometric.datasets import QM9
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-dataset = torch.load("D:\\桌面\\materials code\\cif2graph_data\\dataset\\dataset_whole_y3.pth")
+dataset = torch.load("D:\\桌面\\materials code\\cif2graph_data\\dataset\\MP_dataset_whole_Ef.pth")
 
 # train_dataset = CustomDataset(dataset[:8000])
 
@@ -24,6 +27,7 @@ fig, ax = plt.subplots()  # 创建一个图形和一个坐标轴
 losses_whole = []  # 用于存储每个epoch的损失
 losses_period = []
 if __name__ == '__main__':
+    print(len(dataset))
     select_data = {0: 0, 1: 0}
     train_dataset = []
     test_dataset = []
@@ -32,18 +36,17 @@ if __name__ == '__main__':
     #     print(data)
     num = 0
     for i in range(len(dataset)):
-        if i % 100 < 80:
-            train_dataset.append(dataset[i])
-        # elif i % 100 < 0:
-        #     test_dataset.append(dataset[i])
-        elif i % 100 < 100:
+
+        if i % 100 <= 10:
             valid_dataset.append(dataset[i])
 
-    print(select_data)
+        elif i % 100 <= 100:
+            train_dataset.append(dataset[i])
+        # else:
+        #     valid_dataset.append(dataset[i])
+    print(len(train_dataset), len(valid_dataset))
 
-    torch.save(train_dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\train_dataset_whole_y3.pth")
+    torch.save(train_dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\MP_train_dataset_Ef.pth")
 
-    # torch.save(test_dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\test_dataset_whole_y3.pth")
-
-    torch.save(valid_dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\valid_dataset_whole_y3.pth")
+    torch.save(valid_dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\MP_valid_dataset_Ef.pth")
     # print(numpy.array(data.y)[0])

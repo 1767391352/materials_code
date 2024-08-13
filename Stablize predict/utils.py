@@ -1,18 +1,72 @@
 import codecs
 import concurrent.futures
 import os
+import warnings
 
 import numpy
+import numpy as np
 import torch
 from monty.serialization import loadfn
 from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.io.cif import CifParser
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from torch_geometric.data import Data, InMemoryDataset
-import warnings
 
 warnings.filterwarnings('ignore')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 band_structure_order = ['1s', '2s', '2p', '3s', '3p', '4s', '3d', '4p', '5s', '4d', '5p', '6s', '4f', '5d', '6p', '7s']
+
+
+class EarlyStopping:
+    """Early stops the training if validation loss doesn't improve after a given patience."""
+
+    def __init__(self, patience=7, verbose=False, delta=0, path='weights/checkpoint.pth.tar', trace_func=print):
+        """
+        Args:
+            patience (int): How long to wait after last time validation loss improved.
+                            Default: 7
+            verbose (bool): If True, prints a message for each validation loss improvement.
+                            Default: False
+            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+                            Default: 0
+            path (str): Path for the checkpoint to be saved to.
+                            Default: 'checkpoint.pt'
+            trace_func (function): trace print function.
+                            Default: print
+        """
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+        self.delta = delta
+        self.path = path
+        self.trace_func = trace_func
+
+    def __call__(self, val_loss, model):
+
+        score = -val_loss
+
+        if self.best_score is None:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+            self.counter = 0
+
+    def save_checkpoint(self, val_loss, model):
+        """Saves model when validation loss decrease."""
+        if self.verbose:
+            self.trace_func(
+                f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+        torch.save(model.state_dict(), self.path)
+        self.val_loss_min = val_loss
 
 
 class CustomDataset(InMemoryDataset):
@@ -60,6 +114,11 @@ class GaussianDistance(object):
             return numpy.exp((0 * distances[..., numpy.newaxis]))
 
 
+def mae_metric(prediction, target):
+    mae = torch.mean(torch.abs(prediction - target))
+    return mae
+
+
 def build_dict():
     write_file = codecs.open("D:\\桌面\\materials code\\cif2graph_data\\label\\is_stable.txt", "w", "utf_8")
     listdir_json = os.listdir("D:\\桌面\\materials code\\cif2graph_data\\json\\")
@@ -68,12 +127,13 @@ def build_dict():
         whole_json = loadfn("D:\\桌面\\materials code\\cif2graph_data\\json\\" + filename)
 
         for json in whole_json:
-            # print(json)
-            # for item in json:
-            #     print(item + ":" + str(json[item]))
-            # print("----------------------------------------------------------------------")
-            # is_stable_dic[json["material_id"]] = json["is_stable"]
-            write_file.write(json["material_id"] + ":" + str(int(json["is_stable"])) + "\n")
+            # if json["e_ionic"] is not None:
+            #     print(json["e_ionic"])
+                # for item in json:
+                #     print(item + ":" + str(json[item]))
+                # print("----------------------------------------------------------------------")
+                # is_stable_dic[json["material_id"]] = json["is_stable"]
+                write_file.write(json["material_id"] + ":" + str(json["formation_energy_per_atom"]) + "\n")
 
     write_file.close()
 
@@ -84,7 +144,9 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
     # if num % 10000 == 0:
     #     break
     parser = CifParser("D:\\桌面\\materials code\\cif2graph_data\\cif\\" + filename)
-    structure = parser.parse_structures()[0]
+    structure = parser.parse_structures(primitive=False)[0]
+    analyzer = SpacegroupAnalyzer(structure)
+    structure = analyzer.get_conventional_standard_structure()
     # print(structure)
     a = structure.lattice.a
     b = structure.lattice.b
@@ -102,6 +164,9 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
     x = []
 
     for site in structure.sites:
+
+        # a = Element(site.specie.symbol)
+        # print(a.x, a.ion_energies, a.nvalence_electrons, a.period)
 
         nano_x = [site.specie.number, site.specie.atomic_mass, site.x / a, site.y / b, site.z / c,
                   site.specie.atomic_radius,
@@ -158,9 +223,9 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
             j = neighbor.index
             edge_index.append([i, j])
             edge_index.append([j, i])
-            edge_vector_x = structure[i].x - structure[j].x
-            edge_vector_y = structure[i].y - structure[j].y
-            edge_vector_z = structure[i].z - structure[j].z
+            edge_vector_x = (structure[i].x - structure[j].x) / a
+            edge_vector_y = (structure[i].y - structure[j].y) / b
+            edge_vector_z = (structure[i].z - structure[j].z) / c
             # 添加键长
             distance = structure.get_distance(i, j)
 
@@ -177,8 +242,8 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
             # # 使用平均角度作为特征
             # mean_angle = numpy.mean(angles) if angles else 0
             # 计算键价
-            edge_attr.append([distance, -edge_vector_x, -edge_vector_y, -edge_vector_z])
-            edge_attr.append([distance, edge_vector_x, edge_vector_y, edge_vector_z])
+            edge_attr.append([-edge_vector_x, -edge_vector_y, -edge_vector_z])
+            edge_attr.append([edge_vector_x, edge_vector_y, edge_vector_z])
     gauss = GaussianDistance(dmin=0, dmax=8, step=0.2)
 
     for i in range(len(distances)):
@@ -196,7 +261,7 @@ def muti_process(listdir_cif, cnn, filename, lable_dic):
 
     data = Data(x=x,
                 edge_index=torch.tensor(edge_index, dtype=torch.long).t().contiguous(),
-                edge_attr=torch.tensor(edge_attr, dtype=torch.float), y=torch.tensor(y, dtype=torch.long), cif=filename)
+                edge_attr=torch.tensor(edge_attr, dtype=torch.float), y=torch.tensor(y, dtype=torch.float), cif=filename)
 
     # 打印 PyG 数据集
     # print("\nPyG Data:")
@@ -215,11 +280,19 @@ def build_dataset():
     listdir_json = os.listdir("D:\\桌面\\materials code\\cif2graph_data\\json\\")
     for line in read_file.readlines():
         dict = line.strip().split(":")
-        lable_dic[dict[0] + ".cif"] = int(dict[1])
+        if dict[1] != 'None':
+
+            lable_dic[dict[0] + ".cif"] = float(dict[1])
 
     print(lable_dic)
 
     listdir_cif = os.listdir("D:\\桌面\\materials code\\cif2graph_data\\cif\\")
+    output_cifs = []
+    for filename in listdir_cif:
+        if filename in lable_dic.keys():
+
+            output_cifs.append(filename)
+    print(len(output_cifs))
     cnn = CrystalNN()
     dataset = []
     file_names = []
@@ -227,7 +300,7 @@ def build_dataset():
     with concurrent.futures.ProcessPoolExecutor(max_workers=16) as executor:
         # 使用线程池执行任务
         futures = {executor.submit(muti_process, listdir_cif, cnn, filename, lable_dic) for filename in
-                   listdir_cif}
+                   output_cifs}
         for future in concurrent.futures.as_completed(futures):
             try:
                 data = future.result()
@@ -237,7 +310,7 @@ def build_dataset():
                     dataset.append(data)
                     num += 1
                     if num % 100 == 0:
-                        print(num / 153235 * 100, "%")
+                        print(num / len(lable_dic) * 100, "%")
                     # if num == 100:
                     #     torch.save(dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\dataset_whole.pth")
                     #     exit(0)
@@ -367,7 +440,7 @@ def build_dataset():
     #     dataset.append(data)
     # dataset = CustomDataset(dataset)
     print(dataset.__len__())
-    torch.save(dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\dataset_whole.pth")
+    torch.save(dataset, "D:\\桌面\\materials code\\cif2graph_data\\dataset\\MP_dataset_whole_Ef.pth")
     # dataset = torch.load("D:\\桌面\\materials code\\cif2graph_data\\dataset\\dataset_whole.pth")
     # dataset = CustomDataset(dataset)
     # print(dataset.get(3))

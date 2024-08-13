@@ -9,11 +9,11 @@ from utils import CustomDataset
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-dataset = torch.load("D:\\桌面\\materials code\\cif2graph_data\\dataset\\train_dataset_whole.pth")
-
+dataset = torch.load("D:\\桌面\\materials code\\cif2graph_data\\dataset\\QM9_train_dataset.pth")
+torch.manual_seed(3509)
 # sampled_dataset = [dataset[i] for i in range(len(dataset)) if i % 15 == 0]
 train_dataset = CustomDataset(dataset)
-train_loader = DataLoader(dataset=train_dataset, batch_size=4000, shuffle=True)
+train_loader = DataLoader(dataset=train_dataset, batch_size=2000, shuffle=True)
 
 
 # 定义使用GATConv的编码器
@@ -24,6 +24,7 @@ class Encoder(torch.nn.Module):
         self.mu = GCNConv(hidden_channels, out_channels)
         self.logvar = GCNConv(hidden_channels, out_channels)
         self.bn = LayerNorm(hidden_channels)
+
     def forward(self, x, edge_index):
         x = torch.relu(self.gcn(x, edge_index))
         # print(x.size())
@@ -46,9 +47,9 @@ class Decoder(torch.nn.Module):
 
 
 # 设置模型和优化器
-out_channels = 8
+out_channels = 32
 num_features = train_dataset.num_features
-encoder = Encoder(num_features, 16, out_channels)
+encoder = Encoder(num_features, 64, out_channels)
 
 model = VGAE(encoder=encoder)
 
@@ -103,7 +104,6 @@ if __name__ == '__main__':
             # optimizer.step()
 
         if epoch % 100 == 0 and epoch != 0:
-
             torch.save(model.state_dict(), "D:\\桌面\\materials code\\cif2graph_data\\model\\VGAE_Is_Stable_GNN.pt")
             # print("saved")
         average_loss = epoch_loss / len(train_loader)
