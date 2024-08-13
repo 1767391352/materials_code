@@ -1,0 +1,4 @@
+matplotlib==3.8.4
+phonopy==2.26.7
+pymatgen==2024.5.31
+pymatgen_analysis_diffusion==2023.8.15
