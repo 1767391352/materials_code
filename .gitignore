@@ -1,0 +1,17 @@
+/cif2VASP/BS&DOS.py
+/cif2VASP/cif2VASP.py
+/cif2VASP/phono.py
+/Stablize predict/VGAE_train.py
+/Stablize predict/utils.py
+/Stablize predict/train.py
+/Stablize predict/test.py
+/Stablize predict/qm9.py
+/Stablize predict/model.py
+/Stablize predict/init.py
+/Stablize predict/divide_dataset.py
+/Stablize predict/demo.py
+/Stablize predict/Change_Data_y_QM9.py
+/Stablize predict/Change_Data_y_MP.py
+/Stablize predict/add_noise2data.py
+/npy/npy.py
+/cif2graph_data/main.py
