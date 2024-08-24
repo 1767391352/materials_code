@@ -7,7 +7,7 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 if __name__ == '__main__':
 
     # 从 CIF 文件读取结构
-    parser = CifParser("D:\\桌面\\materials code\\cif2graph_data\\cif\\" + "mp-510624.cif")
+    parser = CifParser("D:\\桌面\\materials_code\\cif2graph_data\\cif\\" + "mp-510624.cif")
     structure = parser.parse_structures()[0]
     analyzer = SpacegroupAnalyzer(structure)
     standardized_structure = analyzer.get_conventional_standard_structure()

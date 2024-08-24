@@ -32,6 +32,6 @@ dos_data = dos_vasprun.complete_dos
 vb_energy_range, cb_energy_range = read_ini_file("./config.ini")
 # set figure parameters, draw figure
 banddos_fig = BSDOSPlotter(bs_projection='elements', dos_projection='elements',
-                           vb_energy_range=vb_energy_range, cb_energy_range=cb_energy_range)
+                           vb_energy_range=vb_energy_range, cb_energy_range=cb_energy_range, )
 banddos_fig.get_plot(bs=bs_data, dos=dos_data)
 plt.savefig('./banddos_fig.png')
